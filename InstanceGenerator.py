@@ -3,17 +3,21 @@ import random
 #%%
 class Instance:
     def __init__ (self, nProducts, nAssortments, nCustomers=1000, seed=42):
-        self.nproducts = nProducts
-        self.products = range(nProducts+1)
+        self.nProducts = nProducts
+        # self.products = range(nProducts+1)
+        self.products = range(1, nProducts+1)
         self.nAssortments = nAssortments
         self.nCustomers = nCustomers
         random.seed(seed)
         
     def transaction_data (self):
-        self.assortments = {m: random.sample(self.products[1::], random.randint(1, self.nproducts)) for m in range(1, self.nAssortments+1)}
-        self.v = {(i,m): 0 for i in self.products[1::] for m in range(1, self.nAssortments+1)}
+        # self.assortments = {m: random.sample(self.products[1::], random.randint(1, self.nProducts)) for m in range(1, self.nAssortments+1)}
+        # self.v = {(i,m): 0 for i in self.products[1::] for m in range(1, self.nAssortments+1)}
+        self.assortments = {m: random.sample(self.products, random.randint(1, self.nProducts)) for m in range(1, self.nAssortments+1)}
+        self.v = {(i,m): 0 for i in self.products for m in range(1, self.nAssortments+1)}
         for m, assortment in self.assortments.items():
-            purchased_item = {product: 0 for product in self.products[1::]}
+            # purchased_item = {product: 0 for product in self.products[1::]}
+            purchased_item = {product: 0 for product in self.products}
             for c in range(1, self.nCustomers+1):
                 purchased_item[random.sample(assortment, 1)[0]] += 1
             
@@ -29,12 +33,12 @@ class Instance:
     def transfrom_to_A (self):
         self.A = {(i,m,k): 0 for i in self.products for m in self.assortments for k in self.sigma}
         
-        
         for k, permutation in self.sigma.items():
             for i in permutation:
                 for m, assortment in self.assortments.items():
                     j, arg_min = float('inf'), float('inf')
-                    for j in [0]+assortment:
+                    # for j in [0]+assortment:
+                    for j in assortment:
                         if permutation.index(j) < arg_min:
                             arg_min = permutation.index(j)
                             j = j
