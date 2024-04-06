@@ -4,25 +4,37 @@ import random
 class Instance:
     def __init__ (self, nProducts, nAssortments, nCustomers=1000, seed=42):
         self.nProducts = nProducts
-        # self.products = range(nProducts+1)
-        self.products = range(1, nProducts+1)
+        self.products = range(nProducts+1)
         self.nAssortments = nAssortments
         self.nCustomers = nCustomers
         random.seed(seed)
         
     def transaction_data (self):
-        # self.assortments = {m: random.sample(self.products[1::], random.randint(1, self.nProducts)) for m in range(1, self.nAssortments+1)}
-        # self.v = {(i,m): 0 for i in self.products[1::] for m in range(1, self.nAssortments+1)}
-        self.assortments = {m: random.sample(self.products, random.randint(1, self.nProducts)) for m in range(1, self.nAssortments+1)}
-        self.v = {(i,m): 0 for i in self.products for m in range(1, self.nAssortments+1)}
+        self.assortments = {m: [] for m in range(1, self.nAssortments+1)}
+        subset = random.sample(self.products, random.randint(1, self.nProducts))
+        while subset == [0]:
+            subset = random.sample(self.products, random.randint(1, self.nProducts))
+        for m in range(1, self.nAssortments+1):
+            while subset in self.assortments.values():
+                subset = random.sample(self.products, random.randint(1, self.nProducts))
+                if subset == [0]:
+                    subset = random.sample(self.products, random.randint(1, self.nProducts))
+            self.assortments[m] = subset
+        self.v_train = {(i,m): 0 for i in self.products for m in range(1, self.nAssortments+1)}
+        self.v_val = {(i,m): 0 for i in self.products for m in range(1, self.nAssortments+1)}
         for m, assortment in self.assortments.items():
-            # purchased_item = {product: 0 for product in self.products[1::]}
-            purchased_item = {product: 0 for product in self.products}
-            for c in range(1, self.nCustomers+1):
-                purchased_item[random.sample(assortment, 1)[0]] += 1
+            choices_train = {product: 0 for product in self.products}
+            choices_val = {product: 0 for product in self.products}
+            train_prop, val_prop = 0.8, 0.2
+            for _ in range(1, int(train_prop*self.nCustomers+1)):
+                choices_train[random.sample(assortment, 1)[0]] += 1
+            for _ in range(1, int(val_prop*self.nCustomers+1)):
+                choices_val[random.sample(assortment, 1)[0]] += 1
             
-            for product, count in purchased_item.items():
-                self.v[(product, m)] = count/self.nCustomers
+            for product, count in choices_train.items():
+                self.v_train[(product, m)] = count/(train_prop*self.nCustomers)
+            for product, count in choices_val.items():
+                self.v_val[(product, m)] = count/(val_prop*self.nCustomers)
         return self
     
     def generate_sigma (self):
@@ -37,7 +49,6 @@ class Instance:
             for i in permutation:
                 for m, assortment in self.assortments.items():
                     j, arg_min = float('inf'), float('inf')
-                    # for j in [0]+assortment:
                     for j in assortment:
                         if permutation.index(j) < arg_min:
                             arg_min = permutation.index(j)
@@ -65,3 +76,6 @@ if __name__ == '__main__':
     # print('A matrix')
     # for i, m, k in instance.A:
     #     print((i, m, k), instance.A[(i, m, k)])
+    # print()
+    # print('v_train')
+    # print(instance.v_train)
