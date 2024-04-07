@@ -2,7 +2,7 @@ from itertools import permutations
 import random
 #%%
 class Instance:
-    def __init__ (self, nProducts, nAssortments, nCustomers=1000, seed=42):
+    def __init__ (self, nProducts, nAssortments, nCustomers=10000, seed=42):
         self.nProducts = nProducts
         self.products = range(nProducts+1)
         self.nAssortments = nAssortments
