@@ -8,24 +8,21 @@ class GurobiSolver:
         self.instance = instance
         self.v = instance.v_train
         self.I = instance.products
+        self.S = instance.assortments
         self.M = instance.assortments.keys()
         self.K = instance.sigma.keys()
         self.A = self.mat_A_generator()
     
     def mat_A_generator (self):
         # Initialize A matrix
-        A = {(i,m,k): 0 for i in self.I for m in self.M for k in self.K}
+        A = {(i,m,k): 0 for m in self.M for i in self.S[m] for k in self.K}
         sigma = self.instance.sigma
         assortments = self.instance.assortments
         # Generate A matrix
         for k, sigma_k in sigma.items():
-            for i in sigma_k:
-                for m, s_m in assortments.items():
-                    j, arg_min = float('inf'), float('inf')
-                    # Find the minimum index of j in s_m
-                    for j in s_m:
-                        if sigma_k.index(j) < arg_min:
-                            j, arg_min = j, sigma_k.index(j)
+            j = sigma_k[0]
+            for m, s_m in assortments.items():
+                for i in s_m:
                     if i == j:
                         A[(i,m,k)] = 1
         return A
@@ -35,15 +32,15 @@ class GurobiSolver:
         
         # Decision Variables
         lmda = model.addVars(self.K, ub=1, vtype=GRB.CONTINUOUS, name='lmda')
-        espilon_p = model.addVars(self.I, self.M, ub=1, vtype=GRB.CONTINUOUS, name='espilon_p')
-        espilon_n = model.addVars(self.I, self.M, ub=1, vtype=GRB.CONTINUOUS, name='espilon_n')
+        espilon_p = {(i,m): model.addVar(ub=1, vtype=GRB.CONTINUOUS, name='espilon_p[%d,%d]' %(i,m)) for m in self.M for i in self.S[m]}
+        espilon_n = {(i,m): model.addVar(ub=1, vtype=GRB.CONTINUOUS, name='espilon_n[%d,%d]' %(i,m)) for m in self.M for i in self.S[m]}
         
         # Objective Function
-        model.setObjective(gp.quicksum(espilon_p[i,m] + espilon_n[i,m] for i in self.I for m in self.M), GRB.MINIMIZE)
+        model.setObjective(gp.quicksum(espilon_p[i,m] + espilon_n[i,m] for m in self.M for i in self.S[m]), GRB.MINIMIZE)
         
         # Constraints
-        constr1 = model.addConstrs(gp.quicksum(self.A[(i,m,k)]*lmda[k] for k in self.K) + espilon_p[i,m] - espilon_n[i,m] == self.v[(i,m)] for i in self.I for m in self.M)
-        constr2 = model.addConstr(gp.quicksum(lmda[k] for k in self.K) == 1)
+        constr1 = model.addConstrs((gp.quicksum(self.A[(i,m,k)]*lmda[k] for k in self.K) + espilon_p[i,m] - espilon_n[i,m] == self.v[(i,m)] for m in self.M for i in self.S[m]), name='constr1')
+        constr2 = model.addConstr(gp.quicksum(lmda[k] for k in self.K) == 1, name='constr2')
         
         model.setParam('OutputFlag', 0)
         model.update()
@@ -51,8 +48,8 @@ class GurobiSolver:
         return model
  #%%
 if __name__ == '__main__':
-    nProducts = 2
-    nAssortments = 2
+    nProducts = 5
+    nAssortments = 4
     instance = ig.Instance(nProducts, nAssortments).generate_instance()
     solver = GurobiSolver(instance)
     model = solver.build_model()
@@ -76,10 +73,12 @@ if __name__ == '__main__':
     # for v in model.getVars():
     #     print(v.varName, v.x)
     
-    lmda = {int(i.varName.split('[')[1].split(']')[0]): i.x for i in model.getVars() if 'lmda' in i.varName}
+    lmda = {int(i.varName.split('[')[1].split(']')[0]): i.x for i in model.getVars() if 'lmda' in i.varName and i.x > 0}
     objVal_val = 0
-    for i in solver.I:
-        for m in solver.M:
+    for m in solver.M:
+        for i in solver.S[m]:
             objVal_val += abs(sum(solver.A[(i,m,k)]*lmda[k] for k in lmda) - instance.v_val[(i,m)])
     print('Objective Value - Val:', objVal_val)
     print('Difference between train and validation:', abs(model.objVal - objVal_val))
+    
+    print('Fitted permutations:', [instance.sigma[k] for k in lmda])
