@@ -123,8 +123,8 @@ class ColGenSolver:
         return mp
  #%%
 if __name__ == '__main__':
-    nProducts = 6
-    nAssortments = 10
+    nProducts = 5
+    nAssortments = 5
     instance = ig.Instance(nProducts, nAssortments).generate_instance()
     solver = ColGenSolver(instance)
     mp = solver.column_generation()

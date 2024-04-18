@@ -59,8 +59,8 @@ class GurobiSolver:
         return model
  #%%
 if __name__ == '__main__':
-    nProducts = 6
-    nAssortments = 20
+    nProducts = 5
+    nAssortments = 5
     instance = ig.Instance(nProducts, nAssortments).generate_instance()
     solver = GurobiSolver(instance)
     model = solver.build_model()
