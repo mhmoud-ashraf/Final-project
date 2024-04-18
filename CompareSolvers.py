@@ -31,4 +31,5 @@ for nProducts in nProducts_list:
             summary[instance_id] = {'nProducts': nProducts, 'nAssortments': nAssortments, 'Gurobi': {'ObjVal': gb_objVal, 'Time': gb_time, 'nPermutations': len(gb_solve.sigma)}, 'ColumnGeneration': {'ObjVal': cg_objVal, 'Time': cg_time, 'nPermutations': len(cg_solve.sigma)}, 'Gap': gb_objVal-cg_objVal}
 print('-'*10, 'Comparisons finished', '-'*10)
 # Print summary of non-zero gap instances
-print('Instances with non-zero gap', [i for i in summary.keys() if abs(summary[i]['Gap']) > 1e-6])
+non_zero_gap = [i for i in summary.keys() if abs(summary[i]['Gap']) > 1e-6]
+print('Instances with non-zero gap', non_zero_gap if non_zero_gap!=[] else 'None')
