@@ -1,4 +1,4 @@
-import math
+import time
 import gurobipy as gp
 from gurobipy import GRB
 import InstanceGenerator as ig
@@ -7,51 +7,54 @@ class ColGenSolver:
     def __init__ (self, instance):
         self.instance = instance
         self.v = instance.v_train
-        self.I = instance.products
         self.S = instance.assortments
-        self.M = instance.assortments.keys()
-        self.K = [0]
-        self.A_init = {(i,m,k): 0 for i in self.I for m in self.M for k in self.K}
+        self.I = instance.options
+        self.S = instance.assortments
+        self.K, self.sigma = [0], {}
+        self.A_init = {(i,m,k): 0 for m in self.S for i in self.S[m]+[0] for k in self.K}
         self.A = {}
-        self.sigma = {}
-    
+        self.objVal_history = {}
+        self.Runtime = 0
+        
     def build_mp (self, A):
-        model = gp.Model('Assortment Optimization - RMS')
-        model.setParam('OutputFlag', 0)
+        model = gp.Model('Assortment Optimization - RMP')
         
         # Decision Variables
         lmda = model.addVars(self.K, ub=1, vtype=GRB.CONTINUOUS, name='lmda')
-        espilon_p = {(i,m): model.addVar(ub=1, vtype=GRB.CONTINUOUS, name='espilon_p[%d,%d]' %(i,m)) for m in self.M for i in self.S[m]}
-        espilon_n = {(i,m): model.addVar(ub=1, vtype=GRB.CONTINUOUS, name='espilon_n[%d,%d]' %(i,m)) for m in self.M for i in self.S[m]}
+        espilon_p = {(i,m): model.addVar(ub=1, vtype=GRB.CONTINUOUS, name='espilon_p[%d,%d]' %(i,m)) for m in self.S for i in self.S[m]+[0]}
+        espilon_n = {(i,m): model.addVar(ub=1, vtype=GRB.CONTINUOUS, name='espilon_n[%d,%d]' %(i,m)) for m in self.S for i in self.S[m]+[0]}
         
         # Objective Function
-        model.setObjective(gp.quicksum(espilon_p[i,m] + espilon_n[i,m] for m in self.M for i in self.S[m]), GRB.MINIMIZE)
+        model.setObjective(gp.quicksum(espilon_p[(i,m)] + espilon_n[(i,m)] for m in self.S for i in self.S[m]+[0]), GRB.MINIMIZE)
         
-        # Constraints
-        constr1 = model.addConstrs((gp.quicksum(A[(i,m,k)]*lmda[k] for k in self.K) + espilon_p[i,m] - espilon_n[i,m] == self.v[(i,m)] for m in self.M for i in self.S[m]), name='constr1')
+         # Constraints
+        constr1 = model.addConstrs((gp.quicksum(A[(i,m,k)]*lmda[k] for k in self.K) + espilon_p[(i,m)] - espilon_n[(i,m)] == self.v[(i,m)] for m in self.S for i in self.S[m]+[0]), name='constr1')
         constr2 = model.addConstr(gp.quicksum(lmda[k] for k in self.K) == 1, name='constr2')
         
         model.setParam('OutputFlag', 0)
+        # model.setParam('Method', 1) # Use Dual Simplex
         model.update()
+        # model.write('RMS_{%s}.lp'%self.K[-1])
         return model
     
     def build_sp (self, alpha, nu):
         model = gp.Model('Assortment Optimization - SP')
-        model.setParam('OutputFlag', 0)
         
         # Decision Variables
-        a = {(i,m): model.addVar(vtype=GRB.BINARY, name='a[%d,%d]' %(i,m)) for m in self.M for i in self.S[m]}
+        a = {(i,m): model.addVar(vtype=GRB.BINARY, name='a[%d,%d]' %(i,m)) for m in self.S for i in self.S[m]+[0]}
         z = {(i,j): model.addVar(vtype=GRB.BINARY, name='z[%d,%d]' %(i,j)) for i in self.I for j in self.I if i!= j}
         
         # Objective Function
-        model.setObjective(gp.quicksum(alpha[(i,m)]*a[i,m] for m in self.M for i in self.S[m]) - nu[1], GRB.MAXIMIZE)
+        model.setObjective(gp.quicksum(alpha[(i,m)]*a[(i,m)] for m in self.S for i in self.S[m]+[0]) + nu[1], GRB.MAXIMIZE)
         
         # Constraints
-        constr1 = model.addConstrs((gp.quicksum(a[i,m] for i in self.S[m]) == 1 for m in self.S), name='constr1')
-        constr2 = model.addConstrs((a[i,m] <= z[i,j] for m in self.M for i in self.S[m] for j in self.S[m] if i!=j), name='constr2')
-        constr3 = model.addConstrs((z[i,j] + z[j,i] == 1 for j in self.I for i in self.I if i!=j), name='constr3')
-        constr4 = model.addConstrs((z[i,j] + z[j,k] - 1 <= z[i,k] for i in self.I for j in self.I for k in self.I if i!=j and i!=k and j!=k), name='constr4')
+        constr1 = model.addConstrs((gp.quicksum(a[(i,m)] for i in self.S[m]+[0]) == 1 for m in self.S), name='constr1')
+        constr2 = model.addConstrs((a[(i,m)] <= z[(i,j)] for m in self.S for i in self.S[m]+[0] for j in self.S[m]+[0] if i!=j), name='constr2')
+        constr3 = model.addConstrs((z[(i,j)] + z[(j,i)] == 1 for j in self.I for i in self.I if i!=j), name='constr3')
+        constr4 = model.addConstrs((z[(i,j)] + z[(j,k)] - 1 <= z[i,k] for i in self.I for j in self.I for k in self.I if i!=j and i!=k and j!=k), name='constr4')
         
+        model.setParam('OutputFlag', 0)
+        # model.setParam('Method', 1) # Use Dual Simplex
         model.update()
         return model
     
@@ -73,12 +76,13 @@ class ColGenSolver:
             if 'z' in var.varName:
                 z[(int(idx.split(',')[0]), int(idx.split(',')[-1]))] = int(val)
         return a, z
+    
     def column_generation(self, gap=1e-2):
-        objVal_history = {}
+        start = time.time()
         # Solve Restricted Master Problem
         mp = self.build_mp(self.A_init)
         mp.optimize()
-        objVal_history[self.K[-1]] = mp.objVal
+        self.objVal_history[self.K[-1]] = mp.objVal
         # Obtain dual variables
         alpha, nu = self.dual_vars(mp)
         # Solve Subproblem
@@ -88,7 +92,7 @@ class ColGenSolver:
         a, z = self.subproblem_primal_vars(sp)
         
         # Iteratively solve Restricted Master Problem and Subproblem
-        while sum(alpha[(i,m)]*a[(i,m)] for m in self.M for i in self.S[m]) + nu[1] > 0:
+        while sum(alpha[(i,m)]*a[(i,m)] for m in self.S for i in self.S[m]+[0]) + nu[1] > 0:
             # Update K
             self.K = range(1, self.K[-1]+1+1)
             # Obtain permutation for new column
@@ -100,50 +104,48 @@ class ColGenSolver:
             # Solve Restricted Master Problem
             mp = self.build_mp(self.A)
             mp.optimize()
-            objVal_history[self.K[-1]] = mp.objVal
+            self.objVal_history[self.K[-1]] = mp.objVal
             # Obtain dual variables
             alpha, nu = self.dual_vars(mp)
             # Solve Subproblem
             sp = self.build_sp(alpha, nu)
             sp.optimize()
             a, z = self.subproblem_primal_vars(sp)
-        
-        # Solve Restricted Master Problem
-        mp = self.build_mp(self.A)
-        mp.optimize()
-        return objVal_history, self.sigma, mp
+        end = time.time()
+        self.Runtime = end-start
+        return mp
  #%%
 if __name__ == '__main__':
-    nProducts = 5
-    nAssortments = 4
+    nProducts = 6
+    nAssortments = 20
     instance = ig.Instance(nProducts, nAssortments).generate_instance()
     solver = ColGenSolver(instance)
-    objVal_history, sigma, mp = solver.column_generation()
+    mp = solver.column_generation()
+    # print('Objective Value History', solver.objVal_history)
+    print('Time:', solver.Runtime)
     
-    # print('Assortments')
-    # print(instance.assortments)
-    # print()
-    # print('Permutations')
-    # print(instance.sigma)
-    # print()
-    # print('v_vals')
-    # for i, m in instance.v_train:
-    #     print((i, m), instance.v_train[(i, m)])
-    # print()
+    # print('Assortments:', instance.assortments)
+    # print('v_train:', instance.v_train)
+    # print('v_val:', instance.v_val)
+    
+    # print('Permutations:', solver.sigma)
     # print('A matrix')
+    # print(solver.A)
     # for i, m, k in solver.A:
     #     print((i,m,k), solver.A[(i,m,k)])
-    # print()
-    print('Objective Value - Train:', mp.objVal)
-    # for v in model.getVars():
-    #     print(v.varName, v.x)
     
-    lmda = {int(i.varName.split('[')[1].split(']')[0]): i.x for i in mp.getVars() if 'lmda' in i.varName and i.x > 0}
-    objVal_val = 0
-    for m in solver.M:
-        for i in solver.S[m]:
-            objVal_val += abs(sum(solver.A[(i,m,k)]*lmda[k] for k in lmda) - instance.v_val[(i,m)])
-    print('Objective Value - Val:', objVal_val)
-    print('Difference between train and validation:', abs(mp.objVal - objVal_val))
+    print('Objective Value - Train:', mp.objVal)    
+    # lmda = {int(i.varName.split('[')[1].split(']')[0]): i.x for i in mp.getVars() if 'lmda' in i.varName and i.x > 0}
+    # print('Lambdas:', lmda)
+    # print('Fitted permutations:', {k: solver.sigma[k] for k in lmda})
     
-    print('Fitted permutations:', [instance.sigma[k] for k in lmda])
+    # for m,S_m in solver.S.items():
+    #     for i in S_m+[0]:
+    #         print('Choice Probability - (%d,%d):' %(i,m), sum(solver.A[(i,m,k)]*lmda[k] for k in lmda))
+    
+    # objVal_val = 0
+    # for m,S_m in solver.S.items():
+    #     for i in solver.S[m]+[0]:
+    #         objVal_val += abs(sum(solver.A[(i,m,k)]*lmda[k] for k in lmda) - instance.v_val[(i,m)])
+    # print('Objective Value - Val:', objVal_val)
+    # print('Difference between train and validation:', abs(mp.objVal - objVal_val))
