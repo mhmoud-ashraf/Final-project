@@ -77,7 +77,7 @@ class ColGenSolver:
                 z[(int(idx.split(',')[0]), int(idx.split(',')[-1]))] = int(val)
         return a, z
     
-    def column_generation(self, gap=1e-2):
+    def column_generation(self):
         start = time.time()
         # Solve Restricted Master Problem
         mp = self.build_mp(self.A_init)
