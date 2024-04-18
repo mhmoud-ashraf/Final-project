@@ -3,8 +3,8 @@ import InstanceGenerator as ig
 import GurobiSolver as gs
 import ColumnGenerationSolver as cgs
 #%%
-nProducts_list = [2, 3, 4, 5, 6]
-nAssortments_list = [2, 3, 4, 5, 10, 15, 20, 25]
+nProducts_list = [2, 3, 4, 5, 6, 8]
+nAssortments_list = [2, 3, 4, 5, 10, 15, 20, 25, 50, 100, 1000, 5000, 10000]
 summary = {}
 instance_id = 0
 print('-'*10, 'Comparisons starting', '-'*10)
@@ -32,4 +32,4 @@ for nProducts in nProducts_list:
 print('-'*10, 'Comparisons finished', '-'*10)
 # Print summary of non-zero gap instances
 non_zero_gap = [i for i in summary.keys() if abs(summary[i]['Gap']) > 1e-6]
-print('Instances with non-zero gap', non_zero_gap if non_zero_gap!=[] else 'None')
+print('Instances with non-zero gap:', non_zero_gap if non_zero_gap!=[] else 'None')
