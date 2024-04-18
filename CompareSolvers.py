@@ -5,7 +5,7 @@ import GurobiSolver as gs
 import ColumnGenerationSolver as cgs
 #%%
 nProducts_list = [2, 3, 4, 5, 6, 8]
-nAssortments_list = [2, 3, 4, 5, 10, 15, 20, 25, 50, 100, 1000, 5000, 10000]
+nAssortments_list = [2, 3, 4, 5, 10, 15, 20, 25]
 summary = {}
 instance_id = 0
 print('-'*10, 'Comparisons starting', '-'*10)
