@@ -15,6 +15,7 @@ class ColGenSolver:
         self.A = {}
         self.objVal_history = {}
         self.Runtime = 0
+        self.P = len(self.v)
         
     def build_mp (self, A):
         model = gp.Model('Assortment Optimization - RMP')
@@ -77,8 +78,8 @@ class ColGenSolver:
                 z[(int(idx.split(',')[0]), int(idx.split(',')[-1]))] = int(val)
         return a, z
     
-    def column_generation(self):
-        start = time.time()
+    def column_generation(self, gap=1e-4):
+        start = time.time() # Start timer
         # Solve Restricted Master Problem
         mp = self.build_mp(self.A_init)
         mp.optimize()
@@ -93,10 +94,12 @@ class ColGenSolver:
         
         # Iteratively solve Restricted Master Problem and Subproblem
         while sum(alpha[(i,m)]*a[(i,m)] for m in self.S for i in self.S[m]+[0]) + nu[1] > 0:
+            # print('Iteration: %d, Objective Value: %.6f' %(self.K[-1], mp.objVal))
             # Update K
             self.K = range(1, self.K[-1]+1+1)
             # Obtain permutation for new column
             sigma_k = dict(sorted({i: sum(z[(j,i)] for j in self.I if i!=j) for i in self.I}.items(), key=lambda item: item[1]))
+            # print('Is it new sigma?', sigma_k not in self.sigma.values())
             self.sigma[self.K[-1]] = tuple(sigma_k.keys())
             # Update A matrix
             for i,m in a:
@@ -105,19 +108,23 @@ class ColGenSolver:
             mp = self.build_mp(self.A)
             mp.optimize()
             self.objVal_history[self.K[-1]] = mp.objVal
+            # # Check if optimality gap is reached
+            # if mp.objVal <= self.P*gap:
+            #     print('Optimality Gap reached')
+            #     break
             # Obtain dual variables
             alpha, nu = self.dual_vars(mp)
             # Solve Subproblem
             sp = self.build_sp(alpha, nu)
             sp.optimize()
             a, z = self.subproblem_primal_vars(sp)
-        end = time.time()
-        self.Runtime = end-start
+        end = time.time() # End timer
+        self.Runtime = end-start # Calculate runtime
         return mp
  #%%
 if __name__ == '__main__':
     nProducts = 6
-    nAssortments = 20
+    nAssortments = 10
     instance = ig.Instance(nProducts, nAssortments).generate_instance()
     solver = ColGenSolver(instance)
     mp = solver.column_generation()
