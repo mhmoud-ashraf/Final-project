@@ -5,11 +5,11 @@ from itertools import permutations
 import InstanceGenerator as ig
 #%%
 class GurobiSolver:
-    def __init__ (self, instance, *sigma):
+    def __init__ (self, instance, sigma={}):
         self.instance = instance
         self.v = instance.v_train
         self.S = instance.assortments
-        if sigma:
+        if sigma != {}:
             self.K, self.sigma = sigma.keys(), sigma
         else:
             self.K, self.sigma = self.permutations_generator()

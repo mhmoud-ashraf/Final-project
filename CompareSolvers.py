@@ -11,7 +11,7 @@ summary = {}
 instance_id = 0
 print('-'*10, 'Comparisons starting', '-'*10)
 for nProducts in nProducts_list:
-    sigma = {k: sigma_k for k,sigma_k in enumerate(permutations(instance.options),start=1)}
+    sigma = {k: sigma_k for k,sigma_k in enumerate(permutations(range(nProducts+1)),start=1)}
     for nAssortments in nAssortments_list:
         if sum(int(math.factorial(nProducts)/(math.factorial(nProducts-i))) for i in range(1, nProducts+1)) >= nAssortments:
             # Generate instance
