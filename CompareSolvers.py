@@ -1,4 +1,5 @@
 import math
+import pandas as pd
 import InstanceGenerator as ig
 import GurobiSolver as gs
 import ColumnGenerationSolver as cgs
@@ -28,8 +29,11 @@ for nProducts in nProducts_list:
             print('GB - Objective Value: %.6f - Time: %.6f with %d permutations' %(gb_objVal, gb_time, len(gb_solve.sigma)))
             print('CG - Objective Value: %.6f - Time: %.6f with %d permutations' %(cg_objVal, cg_time, len(cg_solve.sigma)))
             print('Difference in Objective Value (GB - CG): %.6f' %(gb_objVal-cg_objVal))
-            summary[instance_id] = {'nProducts': nProducts, 'nAssortments': nAssortments, 'Gurobi': {'ObjVal': gb_objVal, 'Time': gb_time, 'nPermutations': len(gb_solve.sigma)}, 'ColumnGeneration': {'ObjVal': cg_objVal, 'Time': cg_time, 'nPermutations': len(cg_solve.sigma)}, 'Gap': gb_objVal-cg_objVal}
+            summary[instance_id] = {'nProducts': nProducts, 'nAssortments': nAssortments, 'ObjValGB': gb_objVal, 'TimeGB': gb_time, 'nPermutationsGB': len(gb_solve.sigma), 'ObjValCG': cg_objVal, 'TimeCG': cg_time, 'nPermutationsCG': len(cg_solve.sigma), 'Gap': gb_objVal-cg_objVal}
 print('-'*10, 'Comparisons finished', '-'*10)
+# Save summary to csv
+summary_df = pd.DataFrame.from_dict(summary, orient='index')
+summary_df.to_csv('Summary.csv')
 # Print summary of non-zero gap instances
 non_zero_gap = [i for i in summary.keys() if abs(summary[i]['Gap']) > 1e-6]
 print('Instances with non-zero gap:', non_zero_gap if non_zero_gap!=[] else 'None')
