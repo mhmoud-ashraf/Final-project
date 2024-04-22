@@ -115,14 +115,15 @@ class CGColSelect:
         # Solve Subset MILP to find the best subset of columns
         subset_milp = self.build_subset_mp(A, new_cols)
         subset_milp.optimize()
-        # Determine which columns to remove
-        y = {int(i.varName.split('[')[1].split(']')[0]): i.x for i in subset_milp.getVars() if 'y' in i.varName and int(i.x) == 0}
-        # print('New Columns to remove:', y)
-        for k in y:
-            K.remove(k)
+        # Determine which columns to keep/remove
+        y = {int(i.varName.split('[')[1].split(']')[0]): int(i.x) for i in subset_milp.getVars() if 'y' in i.varName}
+        # print('New Columns to keep/remove:', y)
+        for k,val in y.items():
+            if val == 0:
+                K.remove(k)
         sigma = {k: sigma[k] for k in K}
         A = {(i,m,k): A[(i,m,k)] for i,m,k in A if k in K}
-        return y, K, sigma, A
+        return K, sigma, A
     
     def build_subset_mp (self, A, K_prime):
         # Update K and set new column penality
@@ -178,9 +179,9 @@ class CGColSelect:
             # Generate new columns
             K, sigma, A = (_.copy() for _ in self.new_columns(a, z))
             # Add a subset of the new columns
-            cols_to_remove, K, sigma, A = (_.copy() for _ in self.subset_new_columns(K, sigma, A))
-            # Break if all new columns are removed, otherwise update K, sigma, and A
-            if len(cols_to_remove) == self.nPricing:
+            K, sigma, A = (_.copy() for _ in self.subset_new_columns(K, sigma, A))
+            # Break if none of the new columns to be added, otherwise update K, sigma, and A
+            if len(K) == len(self.K):
                 break
             else:
                 self.K, self.sigma, self.A = (_.copy() for _ in (K, sigma, A))
@@ -189,6 +190,9 @@ class CGColSelect:
             mp = self.build_mp()
             mp.optimize()
             self.objVal_history[self.iter] = mp.objVal
+            # Break if objective value does not change
+            if self.objVal_history[self.iter] == self.objVal_history[self.iter-1]:
+                break
             # # Check if optimality gap is reached
             # if mp.objVal <= self.P*gap:
             #     print('Optimality Gap reached')

@@ -125,6 +125,9 @@ class ColGenSP:
             mp = self.build_mp()
             mp.optimize()
             self.objVal_history[self.K[-1]] = mp.objVal
+            # Break if objective value does not change
+            if self.objVal_history[self.K[-1]] == self.objVal_history[self.K[-2]]:
+                break
             # # Check if optimality gap is reached
             # if mp.objVal <= self.P*gap:
             #     print('Optimality Gap reached')
