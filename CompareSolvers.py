@@ -29,7 +29,8 @@ for nProducts in nProducts_list:
             # Generate instance
             instance_id += 1
             print('-'*10, 'Instance: %d with %d products and %d assortments' %(instance_id, nProducts, nAssortments), '-'*10)
-            instance = ig.Instance(nProducts, nAssortments, seed=seed).generate_instance()
+            # instance = ig.Instance(nProducts, nAssortments, seed=seed).generate_instance()
+            instance = ig.Instance(nProducts, nAssortments).generate_instance()
             
             # Solve using Gurobi
             gb_solve = gs.GurobiSolver(instance, sigma)
