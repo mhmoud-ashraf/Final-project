@@ -3,22 +3,20 @@ import gurobipy as gp
 from gurobipy import GRB
 import InstanceGenerator as ig
 #%%
-class MultiplePricingCG:
-    def __init__ (self, instance, nPricing=3):
+class ColGenSP:
+    def __init__ (self, instance):
         self.instance = instance
         self.v = instance.v_train
         self.S = instance.assortments
         self.I = instance.options
         self.S = instance.assortments
         self.K, self.sigma = [0], {}
-        self.A_init = {(i,m,k): 0 for m in self.S for i in self.S[m]+[0] for k in self.K}
         self.A = {}
         self.objVal_history = {}
         self.Runtime = 0
         self.P = len(self.v)
-        self.nPricing = nPricing
         
-    def build_mp (self, A):
+    def build_mp (self):
         model = gp.Model('Assortment Optimization - RMP')
         
         # Decision Variables
@@ -29,8 +27,11 @@ class MultiplePricingCG:
         # Objective Function
         model.setObjective(gp.quicksum(espilon_p[(i,m)] + espilon_n[(i,m)] for m in self.S for i in self.S[m]+[0]), GRB.MINIMIZE)
         
-         # Constraints
-        constr1 = model.addConstrs((gp.quicksum(A[(i,m,k)]*lmda[k] for k in self.K) + espilon_p[(i,m)] - espilon_n[(i,m)] == self.v[(i,m)] for m in self.S for i in self.S[m]+[0]), name='constr1')
+        # Constraints
+        if self.A == {}:
+            constr1 = model.addConstrs((espilon_p[(i,m)] - espilon_n[(i,m)] == self.v[(i,m)] for m in self.S for i in self.S[m]+[0]), name='constr1')
+        else:
+            constr1 = model.addConstrs((gp.quicksum(self.A[(i,m,k)]*lmda[k] for k in self.K) + espilon_p[(i,m)] - espilon_n[(i,m)] == self.v[(i,m)] for m in self.S for i in self.S[m]+[0]), name='constr1')
         constr2 = model.addConstr(gp.quicksum(lmda[k] for k in self.K) == 1, name='constr2')
         
         model.setParam('OutputFlag', 0)
@@ -56,9 +57,6 @@ class MultiplePricingCG:
         constr4 = model.addConstrs((z[(i,j)] + z[(j,k)] - 1 <= z[i,k] for i in self.I for j in self.I for k in self.I if i!=j and i!=k and j!=k), name='constr4')
         
         model.setParam('OutputFlag', 0)
-        # model.setParam('PoolSearchMode', 1) # Enable PoolSearch with no guarantee on the quality
-        model.setParam('PoolSearchMode', 2) # Enable PoolSearch with n best solutions
-        model.setParam('PoolSolutions', self.nPricing) # Output multiple solutions
         # model.setParam('Method', 1) # Use Dual Simplex
         model.update()
         return model
@@ -73,21 +71,39 @@ class MultiplePricingCG:
         return alpha, nu
     
     def subproblem_primal_vars (self, sp):
-        a, z = {sol+1:{} for sol in range(sp.SolCount)}, {sol+1:{} for sol in range(sp.SolCount)}
-        for sol in range(sp.SolCount):
-            sp.setParam('SolutionNumber', sol)
-            for var in sp.getVars():
-                idx, val = var.varName.split('[')[1].split(']')[0], var.Xn
-                if 'a' in var.varName:
-                    a[sol+1][(int(idx.split(',')[0]), int(idx.split(',')[-1]))] = int(val)
-                if 'z' in var.varName:
-                    z[sol+1][(int(idx.split(',')[0]), int(idx.split(',')[-1]))] = int(val)
+        a, z = {}, {}
+        for var in sp.getVars():
+            idx, val = var.varName.split('[')[1].split(']')[0], var.x
+            if 'a' in var.varName:
+                a[(int(idx.split(',')[0]), int(idx.split(',')[-1]))] = int(val)
+            if 'z' in var.varName:
+                z[(int(idx.split(',')[0]), int(idx.split(',')[-1]))] = int(val)
         return a, z
     
-    def column_generation(self, gap=1e-4):
+    def new_columns (self, a, z):
+        # Initialize new K, sigma, and A matrix
+        K = self.K.copy()
+        sigma = self.sigma.copy()
+        A = self.A.copy()
+        # Update K
+        if 0 in K:
+            K += [1]
+            K.remove(0)
+        else:
+            K += [K[-1]+1]
+        # Obtain permutation for new column
+        sigma_k = dict(sorted({i: sum(z[(j,i)] for j in self.I if i!=j) for i in self.I}.items(), key=lambda item: item[1]))
+        # print('Is it new sigma?', sigma_k not in sigma.values())
+        sigma[K[-1]] = tuple(sigma_k.keys())
+        # Update A matrix
+        for i,m in a:
+            A[(i,m,K[-1])] = a[(i,m)]
+        return K, sigma, A
+    
+    def CG_solve (self, gap=1e-4):
         start = time.time() # Start timer
         # Solve Restricted Master Problem
-        mp = self.build_mp(self.A_init)
+        mp = self.build_mp()
         mp.optimize()
         self.objVal_history[self.K[-1]] = mp.objVal
         # Obtain dual variables
@@ -98,26 +114,15 @@ class MultiplePricingCG:
         # Obtain subproblem primal variables values
         a, z = self.subproblem_primal_vars(sp)
         
-        self.iter = 0
         # Iteratively solve Restricted Master Problem and Subproblem
-        while True in [sum(alpha[(i,m)]*a[sol+1][(i,m)] for m in self.S for i in self.S[m]+[0]) + nu[1] > 0 for sol in range(sp.SolCount)]:
-            self.iter += 1
-            # print('Iteration: %d, Objective Value: %.6f' %(self.iter, mp.objVal))
-            # Iterate over all solutions for the pricing problem
-            for sol in range(sp.SolCount):
-                # Add column with negative reduced cost
-                if sum(alpha[(i,m)]*a[sol+1][(i,m)] for m in self.S for i in self.S[m]+[0]) + nu[1] > 0:
-                    # Update K
-                    self.K = range(1, self.K[-1]+1+1)
-                    # Obtain permutation for new column
-                    sigma_k = dict(sorted({i: sum(z[sol+1][(j,i)] for j in self.I if i!=j) for i in self.I}.items(), key=lambda item: item[1]))
-                    # print('Is it new sigma?', sigma_k not in self.sigma.values())
-                    self.sigma[self.K[-1]] = tuple(sigma_k.keys())
-                    # Update A matrix
-                    for i,m in a[sol+1]:
-                        self.A[(i,m,self.K[-1])] = a[sol+1][(i,m)]
+        while sum(alpha[(i,m)]*a[(i,m)] for m in self.S for i in self.S[m]+[0]) + nu[1] > 0:
+            # print('Iteration: %d, Objective Value: %.6f' %(self.K[-1], mp.objVal))
+            
+            # Generate new columns
+            self.K, self.sigma, self.A = (_.copy() for _ in self.new_columns(a, z))
+            
             # Solve Restricted Master Problem
-            mp = self.build_mp(self.A)
+            mp = self.build_mp()
             mp.optimize()
             self.objVal_history[self.K[-1]] = mp.objVal
             # # Check if optimality gap is reached
@@ -138,8 +143,8 @@ if __name__ == '__main__':
     nProducts = 5
     nAssortments = 5
     instance = ig.Instance(nProducts, nAssortments).generate_instance()
-    solver = MultiplePricingCG(instance)
-    mp = solver.column_generation()
+    solver = ColGenSP(instance)
+    mp = solver.CG_solve()
     # print('Objective Value History', solver.objVal_history)
     print('Time:', solver.Runtime)
     
