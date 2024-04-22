@@ -7,6 +7,7 @@ import CG_SinglePricing as CGSP
 import CG_MultiplePricing as CGMP
 import OptColSelect as CGMPSub
 #%%
+# seed_list = [0, 42, 68, 84, 100]
 nProducts_list = [2, 3, 4, 5, 6, 8]
 nAssortments_list = [2, 3, 4, 5, 10, 15, 20, 25]
 summary = {}
@@ -14,6 +15,12 @@ instance_id = 0
 
 print('-'*10, 'Comparisons starting', '-'*10)
 
+# for seed in seed_list:
+#     gb_objVals, gb_times, gp_K = [], [], []
+#     CGSP_objVals, CGSP_times, CGSP_K, CGSP_nCols = [], [], [], []
+#     CGMP_objVals, CGMP_times, CGSP_K, CGMP_nCols = [], [], [], []
+#     CGMPSub_objVals, CGMPSub_times, CGSP_K, CGMPSub_nCols = [], [], [], []
+    
 for nProducts in nProducts_list:
     # Generate all permutations of options
     sigma = {k: sigma_k for k,sigma_k in enumerate(permutations(range(nProducts+1)),start=1)}
@@ -22,7 +29,7 @@ for nProducts in nProducts_list:
             # Generate instance
             instance_id += 1
             print('-'*10, 'Instance: %d with %d products and %d assortments' %(instance_id, nProducts, nAssortments), '-'*10)
-            instance = ig.Instance(nProducts, nAssortments).generate_instance()
+            instance = ig.Instance(nProducts, nAssortments, seed=seed).generate_instance()
             
             # Solve using Gurobi
             gb_solve = gs.GurobiSolver(instance, sigma)
