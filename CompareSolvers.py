@@ -37,7 +37,7 @@ for nProducts in nProducts_list:
                 CGSP_solve = CGSP.ColGenSP(instance)
                 CGSP_mp = CGSP_solve.CG_solve()
                 CGSP_objVal, cg_time = CGSP_mp.objVal, CGSP_solve.Runtime
-                print('CGSP -- ObjVal: %.6f - Time: %.6f with K: %d in %d iterations' %(CGSP_objVal, cg_time, len(CGSP_solve.sigma), len(CGSP_solve.sigma)))
+                print('CGSP -- ObjVal: %.6f - Time: %.6f with K: %d in %d iterations' %(CGSP_objVal, cg_time, len(CGSP_solve.sigma), CGSP_solve.iter))
                 
                 # Solve using Column Generation - Multiple Pricing = nPricing
                 CGMP_solve = CGMP.ColGenMP(instance, nPricing=5) # add nPricing columns at each iteration

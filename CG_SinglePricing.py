@@ -101,11 +101,12 @@ class ColGenSP:
         return K, sigma, A
     
     def CG_solve (self, gap=1e-4):
+        self.iter = 0 # Initialize iteration counter to zero
         start = time.time() # Start timer
         # Solve Restricted Master Problem
         mp = self.build_mp()
         mp.optimize()
-        self.objVal_history[self.K[-1]] = mp.objVal
+        self.objVal_history[self.iter] = mp.objVal
         # Obtain dual variables
         alpha, nu = self.dual_vars(mp)
         # Solve Subproblem
@@ -116,7 +117,8 @@ class ColGenSP:
         
         # Iteratively solve Restricted Master Problem and Subproblem
         while sum(alpha[(i,m)]*a[(i,m)] for m in self.S for i in self.S[m]+[0]) + nu[1] > 0:
-            # print('Iteration: %d, Objective Value: %.6f' %(self.K[-1], mp.objVal))
+            self.iter += 1
+            # print('Iteration: %d, Objective Value: %.6f' %(self.iter, mp.objVal))
             
             # Generate new columns
             self.K, self.sigma, self.A = (_.copy() for _ in self.new_columns(a, z))
@@ -124,9 +126,9 @@ class ColGenSP:
             # Solve Restricted Master Problem
             mp = self.build_mp()
             mp.optimize()
-            self.objVal_history[self.K[-1]] = mp.objVal
+            self.objVal_history[self.iter] = mp.objVal
             # Break if objective value does not change
-            if self.objVal_history[self.K[-1]] == self.objVal_history[self.K[-2]]:
+            if self.objVal_history[self.iter] == self.objVal_history[self.iter-1]:
                 break
             # # Check if optimality gap is reached
             # if mp.objVal <= self.P*gap:
